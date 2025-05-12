@@ -3679,9 +3679,9 @@ LRESULT CVTWindow::OnCommOpen(WPARAM wParam, LPARAM lParam)
 	if (cv.PortType==IdTCPIP) {
 		InitTelnet();
 
-		if ((cv.TelFlag) && (ts.TCPPort==ts.TelPort)) {
+		if (cv.TelFlag) {
 			// Start telnet option negotiation from this side
-			//   if telnet flag is set and port#==default telnet port# (23)
+			//   if telnet flag is set
 			TelEnableMyOpt(TERMTYPE);
 
 			TelEnableHisOpt(SGA);

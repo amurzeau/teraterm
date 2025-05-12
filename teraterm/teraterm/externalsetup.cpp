@@ -169,7 +169,8 @@ static void ExternalSetupPostProcess(CAddSettingPropSheetDlgPage page, BOOL ok)
 				if (cv.Ready && (cv.PortType != IdSerial)) {
 					// ƒVƒŠƒAƒ‹ˆÈŠO‚ÉÚ‘±’†‚Ìê‡
 					//  TODO cv.Ready ‚Æ cv.Open‚Ì·‚Í?
-					TelResetSerial(&ts);
+					if(cv.TelFlag > 0)
+						TelResetSerial(&ts);
 #if 0
 					OpenNewComport(&ts);
 					return;
