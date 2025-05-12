@@ -85,7 +85,8 @@
 #define TERMSPEED  32
 #define TFLOWCNTRL 33
 #define LINEMODE   34
-#define MaxTelOpt  34
+#define ComPortOpt 44
+#define MaxTelOpt  44
 
   /* Telnet status */
 #define TelIdle    0
@@ -110,6 +111,7 @@ void TelInformWinSize(int nx, int ny);
 void TelSendAYT(void);
 void TelSendBreak(void);
 void TelChangeEcho(void);
+void TelResetSerial(PTTSet ts);
 void TelStartKeepAliveThread(void);
 void TelUpdateKeepAliveInterval(void);
 

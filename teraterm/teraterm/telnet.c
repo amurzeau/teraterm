@@ -121,6 +121,7 @@ void InitTelnet(void)
 	tr.MyOpt[TERMSPEED].Accept = TRUE;
 	tr.MyOpt[NAWS].Accept = TRUE;
 	tr.HisOpt[NAWS].Accept = TRUE;
+	tr.HisOpt[ComPortOpt].Accept = TRUE;
 	tr.WinSize.x = ts.TerminalWidth;
 	tr.WinSize.y = ts.TerminalHeight;
 
@@ -602,6 +603,11 @@ static void ParseTelDo(BYTE b)
 			cv.TelLineMode = FALSE;
 		break;
 
+	case ComPortOpt:
+		if (tr.MyOpt[ComPortOpt].Status==Yes)
+			TelResetSerial(&ts);
+		break;
+
 	default:
 		break;
 	}
@@ -860,6 +866,194 @@ static void TelSendNOP(void)
 	CommSend(&cv);
 	if (tr.LogFile)
 		TelWriteLog(Str, 2);
+}
+
+#define COMPORTOPT_SET_BAUDRATE            1
+#define COMPORTOPT_SET_DATASIZE            2
+#define COMPORTOPT_SET_PARITY              3
+#define COMPORTOPT_SET_STOPSIZE            4
+#define COMPORTOPT_SET_CONTROL             5
+#define COMPORTOPT_NOTIFY_LINESTATE        6
+#define COMPORTOPT_NOTIFY_MODEMSTATE       7
+#define COMPORTOPT_FLOWCONTROL_SUSPEND     8
+#define COMPORTOPT_FLOWCONTROL_RESUME      9
+#define COMPORTOPT_SET_LINESTATE_MASK     10
+#define COMPORTOPT_SET_MODEMSTATE_MASK    11
+#define COMPORTOPT_PURGE_DATA             12
+
+static BYTE* WriteTelData(BYTE* Buff, int b) {
+	if (b == IAC) {
+		*Buff++ = IAC;
+	}
+	*Buff++ = b;
+	return Buff;
+}
+
+static void SendRFC2217Baudrate(int baudrate)
+{
+	BYTE TmpBuff[21];
+	BYTE* p = TmpBuff;
+	char baudrateBin[4];
+
+	baudrateBin[0] = (baudrate >> 24) & 0xFF;
+	baudrateBin[1] = (baudrate >> 16) & 0xFF;
+	baudrateBin[2] = (baudrate >> 8) & 0xFF;
+	baudrateBin[3] = baudrate & 0xFF;
+
+	*p++ = IAC;
+	*p++ = SB;
+	*p++ = ComPortOpt;
+	*p++ = COMPORTOPT_SET_BAUDRATE;
+
+	p = WriteTelData(p, baudrateBin[0]);
+	p = WriteTelData(p, baudrateBin[1]);
+	p = WriteTelData(p, baudrateBin[2]);
+	p = WriteTelData(p, baudrateBin[3]);
+
+	*p++ = IAC;
+	*p++ = SE;
+
+	CommRawOut(&cv, TmpBuff, p - TmpBuff);
+	if (tr.LogFile)
+		TelWriteLog(TmpBuff, p - TmpBuff);
+}
+
+static void SendRFC2217Datasize(int bits_per_data)
+{
+	BYTE TmpBuff[21];
+	BYTE* p = TmpBuff;
+
+	*p++ = IAC;
+	*p++ = SB;
+	*p++ = ComPortOpt;
+	*p++ = COMPORTOPT_SET_DATASIZE;
+
+	p = WriteTelData(p, bits_per_data);
+
+	*p++ = IAC;
+	*p++ = SE;
+
+	CommRawOut(&cv, TmpBuff, p - TmpBuff);
+	if (tr.LogFile)
+		TelWriteLog(TmpBuff, p - TmpBuff);
+}
+
+static void SendRFC2217Parity(int parity)
+{
+	BYTE TmpBuff[21];
+	BYTE* p = TmpBuff;
+
+	*p++ = IAC;
+	*p++ = SB;
+	*p++ = ComPortOpt;
+	*p++ = COMPORTOPT_SET_PARITY;
+
+	p = WriteTelData(p, parity);
+
+	*p++ = IAC;
+	*p++ = SE;
+
+	CommRawOut(&cv, TmpBuff, p - TmpBuff);
+	if (tr.LogFile)
+		TelWriteLog(TmpBuff, p - TmpBuff);
+}
+
+static void SendRFC2217StopSize(int stop_size)
+{
+	BYTE TmpBuff[21];
+	BYTE* p = TmpBuff;
+
+	*p++ = IAC;
+	*p++ = SB;
+	*p++ = ComPortOpt;
+	*p++ = COMPORTOPT_SET_STOPSIZE;
+
+	p = WriteTelData(p, stop_size);
+
+	*p++ = IAC;
+	*p++ = SE;
+
+	CommRawOut(&cv, TmpBuff, p - TmpBuff);
+	if (tr.LogFile)
+		TelWriteLog(TmpBuff, p - TmpBuff);
+}
+
+static void SendRFC2217Control(int control)
+{
+	BYTE TmpBuff[21];
+	BYTE* p = TmpBuff;
+
+	*p++ = IAC;
+	*p++ = SB;
+	*p++ = ComPortOpt;
+	*p++ = COMPORTOPT_SET_CONTROL;
+
+	p = WriteTelData(p, control);
+
+	*p++ = IAC;
+	*p++ = SE;
+
+	CommRawOut(&cv, TmpBuff, p - TmpBuff);
+	if (tr.LogFile)
+		TelWriteLog(TmpBuff, p - TmpBuff);
+}
+
+/* reset a serial port which is already open */
+void TelResetSerial(PTTSet ts)
+{
+	if(tr.MyOpt[ComPortOpt].Status != Yes)
+		return;
+
+	SendRFC2217Baudrate(ts->Baud);
+
+	switch (ts->Parity) {
+		case IdParityNone:
+			SendRFC2217Parity(1);
+			break;
+		case IdParityOdd:
+			SendRFC2217Parity(2);
+			break;
+		case IdParityEven:
+			SendRFC2217Parity(3);
+			break;
+		case IdParityMark:
+			SendRFC2217Parity(4);
+			break;
+		case IdParitySpace:
+			SendRFC2217Parity(5);
+			break;
+	}
+
+	switch (ts->Flow) {
+		case IdFlowX:  // XON/XOFF
+			SendRFC2217Control(2);
+			break;
+		case IdFlowHard:  // RTS/CTS
+			SendRFC2217Control(3);
+			break;
+		case IdFlowHardDsrDtr:  // DSR/DTR
+			SendRFC2217Control(19);
+			break;
+		default:
+			SendRFC2217Control(1);
+	}
+
+	switch (ts->DataBit) {
+		case IdDataBit7:
+			SendRFC2217Datasize(7);
+			break;
+		case IdDataBit8:
+			SendRFC2217Datasize(8);
+			break;
+	}
+	switch (ts->StopBit) {
+		case IdStopBit1:
+			SendRFC2217StopSize(1);
+			break;
+		case IdStopBit2:
+			SendRFC2217StopSize(2);
+			break;
+	}
 }
 
 #define WM_SEND_HEARTBEAT (WM_USER + 1)

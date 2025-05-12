@@ -3700,6 +3700,7 @@ LRESULT CVTWindow::OnCommOpen(WPARAM wParam, LPARAM lParam)
 			}
 
 			TelEnableMyOpt(TERMSPEED);
+			TelEnableMyOpt(ComPortOpt);
 
 			TelStartKeepAliveThread();
 		}
